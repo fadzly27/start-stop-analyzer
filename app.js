@@ -529,14 +529,25 @@ function weeklySVG(weeks) {
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly burst bag downtime">${g}</svg>`;
 }
 
-function hbarRow(name, min, total, cls, hasData, extra = '') {
+const ICONS = {
+  clock: '<path d="M12 7v5l3 3"/><circle cx="12" cy="12" r="9"/>',
+  pallet: '<path d="M3 17h18M5 17v3M12 17v3M19 17v3"/><rect x="5" y="10" width="6" height="7" rx="1"/><rect x="13" y="10" width="6" height="7" rx="1"/><rect x="9" y="3" width="6" height="7" rx="1"/>',
+  bag: '<path d="M7 4h10l2 5v10a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V9l2-5Z"/><path d="M5 9h14M10 13h4"/>',
+  alert: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.4 18a2 2 0 0 0 1.7 3h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+  burst: '<path d="M12 3c1 3 4 4.5 4 8.5a4 4 0 0 1-8 0c0-1.5.7-2.7 1.5-3.5.3 1.5 1 2.5 2 3 0-3 .5-5.5.5-8Z"/><path d="M6 21h12"/>',
+  trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 6h3a3 3 0 0 1-3 4M7 6H4a3 3 0 0 0 3 4"/>',
+};
+const icon = n => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]}</svg>`;
+
+function hbarRow(name, min, total, isTop, hasData, extra = '') {
   if (!hasData) {
     return `<div class="bar-row nodata-row"><span class="name">${esc(name)}</span><div class="bar-track"></div><span class="val nodata">No data</span></div>`;
   }
   const p = pct(min, total);
-  return `<div class="bar-row" title="${esc(name)}: ${fmt(min)} min (${fmtPct(p)})${extra}">
+  return `<div class="bar-row${isTop ? ' is-top' : ''}" title="${esc(name)}: ${fmt(min)} min (${fmtPct(p)})${extra}">
     <span class="name">${esc(name)}</span>
-    <div class="bar-track"><div class="bar-fill ${cls}" style="width:${p.toFixed(2)}%"></div></div>
+    <div class="bar-track"><div class="bar-fill${isTop ? ' top' : ''}" style="width:${p.toFixed(2)}%"></div></div>
     <span class="val">${fmt(min)} min<span class="p">${fmtPct(p)}</span></span></div>`;
 }
 
@@ -554,13 +565,17 @@ function renderReport(a) {
     : `No unplanned downtime recorded in ${m.monthName}`;
   const machineMax = a.top ? `${fmt(a.top.min)} min of unplanned stops (${fmtPct(pct(a.top.min, a.top.name.startsWith('Packer') ? a.pakTotal : a.palTotal))} of all ${a.top.name.startsWith('Packer') ? 'packer' : 'palletizer'} downtime).` : '';
   const reviewCls = a.needsReview ? '' : ' clean';
+  const isTopOf = (group, n) => {
+    const best = Math.max(...group.map(x => a.machine[x].min));
+    return best > 0 && a.machine[n].min === best;
+  };
 
   const topTable = (t, cls) => {
     if (!t.rows.length) return '<p class="nodata">No unplanned downtime.</p>';
-    return `<div class="bars">${t.rows.map((r, i) => {
+    return `<div class="bars reasons">${t.rows.map((r, i) => {
       const examples = [...r.texts.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3).map(x => x[0]).join(' · ');
-      return hbarRow(`${i + 1}. ${r.group}`, r.min, t.total, cls, true, `\n${r.count} stops\nExamples: ${examples}`)
-        .replace('class="name"', `class="name" style="white-space:normal"`);
+      return hbarRow(`${i + 1}. ${r.group}`, r.min, t.total, i === 0, true, `\n${r.count} stops\nExamples: ${examples}`)
+        ;
     }).join('')}</div>`;
   };
 
@@ -571,16 +586,16 @@ function renderReport(a) {
       <p class="lede">${machineMax} Charts and top reasons use unplanned downtime only.</p>
     </div>
     <div class="grid kpis">
-      <div class="card kpi total"><div class="label">Total unplanned downtime</div>
+      <div class="card kpi total"><div class="label">${icon("clock")}Total unplanned downtime</div>
         <div class="value">${fmt(a.total)}<small>min</small></div>
         <div class="note">${fmtH(a.total)} h${a.sharedMin ? ` · incl. ${fmt(a.sharedMin)} min All / Shared` : ''}<br>Planned ${fmt(a.planned)} min${a.unclassMin ? ` · Unclassified ${fmt(a.unclassMin)} min (not counted)` : ''}</div></div>
-      <div class="card kpi pal"><div class="label">Palletizers total</div>
+      <div class="card kpi pal"><div class="label">${icon("pallet")}Palletizers total</div>
         <div class="value">${fmt(a.palTotal)}<small>min</small></div>
         <div class="note">${fmtH(a.palTotal)} h · ${fmtPct(pct(a.palTotal, a.total))} of total</div></div>
-      <div class="card kpi pak"><div class="label">Packers total</div>
+      <div class="card kpi pak"><div class="label">${icon("bag")}Packers total</div>
         <div class="value">${fmt(a.pakTotal)}<small>min</small></div>
         <div class="note">${fmtH(a.pakTotal)} h · ${fmtPct(pct(a.pakTotal, a.total))} of total</div></div>
-      <button class="card kpi review${reviewCls}" type="button" data-goto="quality"><div class="label">Needs review</div>
+      <button class="card kpi review${reviewCls}" type="button" data-goto="quality"><div class="label">${icon(a.needsReview ? "alert" : "check")}Needs review</div>
         <div class="value">${fmt(a.needsReview)}<small>issues</small></div>
         <div class="note">${a.needsReview ? 'Open Data Quality →' : 'All rows look fine'}${a.autoFixed ? ` · ${a.autoFixed} typos auto-fixed` : ''}</div></button>
     </div>
@@ -589,11 +604,11 @@ function renderReport(a) {
       <div class="card-head"><h2>Unplanned downtime by machine</h2><span class="sub">Palletizers and packers each add up to 100%</span></div>
       <div class="bar-group">
         <div class="bar-group-title"><span>Palletizers</span><span>${fmt(a.palTotal)} min</span></div>
-        <div class="bars">${PALLETIZERS.map(n => hbarRow(n, a.machine[n].min, a.palTotal, 'pal', a.machine[n].records > 0)).join('')}</div>
+        <div class="bars">${PALLETIZERS.map(n => hbarRow(n, a.machine[n].min, a.palTotal, isTopOf(PALLETIZERS, n), a.machine[n].records > 0)).join('')}</div>
       </div>
       <div class="bar-group">
         <div class="bar-group-title"><span>Packers</span><span>${fmt(a.pakTotal)} min</span></div>
-        <div class="bars">${PACKERS.map(n => hbarRow(n, a.machine[n].min, a.pakTotal, 'pak', a.machine[n].records > 0)).join('')}</div>
+        <div class="bars">${PACKERS.map(n => hbarRow(n, a.machine[n].min, a.pakTotal, isTopOf(PACKERS, n), a.machine[n].records > 0)).join('')}</div>
       </div>
       ${a.sharedMin || a.unknownMin ? `<div class="note-box">Not in this chart: ${a.sharedMin ? `${fmt(a.sharedMin)} min All / Shared (all equipment stopped, packer and palletizer)` : ''}${a.sharedMin && a.unknownMin ? ' · ' : ''}${a.unknownMin ? `${fmt(a.unknownMin)} min with unknown equipment` : ''}.</div>` : ''}
     </div>
@@ -620,13 +635,13 @@ function renderBurst(a) {
       ${vital.length ? `<p class="lede">${vital.length} of ${p.rows.length} causes make up the first 80% of burst/stuck bag downtime.</p>` : ''}
     </div>
     <div class="grid kpis">
-      <div class="card kpi hi"><div class="label">Burst / stuck bag downtime</div>
+      <div class="card kpi hi"><div class="label">${icon("burst")}Burst / stuck bag downtime</div>
         <div class="value">${fmt(a.burstTotal)}<small>min</small></div>
         <div class="note">${fmtH(a.burstTotal)} h · ${a.burst.length} stops · ${fmtPct(pct(a.burstTotal, a.total))} of unplanned</div></div>
-      <div class="card kpi"><div class="label">No. 1 cause</div>
+      <div class="card kpi"><div class="label">${icon("trophy")}No. 1 cause</div>
         <div class="value text">${top ? esc(top.cause) : '—'}</div>
         <div class="note">${top ? `${fmt(top.min)} min · ${top.count} times · ${fmtPct(top.pct)}` : 'No data'}</div></div>
-      <div class="card kpi pal"><div class="label">No. 1 cause at palletizers</div>
+      <div class="card kpi pal"><div class="label">${icon("pallet")}No. 1 cause at palletizers</div>
         <div class="value text">${topPal ? esc(topPal.cause) : '—'}</div>
         <div class="note">${topPal ? `${fmt(topPal.min)} min · ${topPal.count} times · ${fmtPct(topPal.pct)} of palletizer burst` : 'No data'}</div></div>
     </div>
