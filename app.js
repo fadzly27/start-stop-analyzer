@@ -92,7 +92,7 @@ const state = {
   overrides: loadLS(LS.overrides, {}),  // normalized reason text -> group
   compiled: [],
   analysis: null,
-  qFilter: { type: '', text: '' },
+  qFilter: { sev: '', text: '' },
   recFilter: '',
 };
 
@@ -685,38 +685,21 @@ function renderQuality(a) {
   const nWarn = issues.filter(i => i.sev === 'warn').length;
   const types = [...new Set([...issues.map(i => i.type), ...(a.unclassRows ? ['Unclassified reason'] : [])])].sort();
   const issueTotal = issues.length + a.unclassRows;
+  const nInfo = issues.filter(i => i.sev === 'info').length;
   const mapped = Object.keys(state.overrides).length;
 
   el.innerHTML = `
     <div class="page-head">
       <div class="eyebrow">Data quality · ${esc(m.label)}</div>
-      <h1>${a.needsReview ? `${fmt(a.needsReview)} items need review` : 'No issues need review'}</h1>
-      <p class="lede">Unclassified reasons and rows with errors or warnings. Auto-fixed typos are listed for your information.</p>
+      <h1>${issueTotal ? `${fmt(issueTotal)} issues found` : 'No issues found'}</h1>
+      <p class="lede">${issueTotal ? `${fmt(a.needsReview)} need action · ${fmt(nInfo)} for information only. Each group says what to do.` : `All ${fmt(m.records.length)} records were read cleanly.`}</p>
     </div>
-    <div class="summary-chips">
-      <span class="chip"><b>${a.unclassRows}</b> rows with unclassified reason</span>
-      <span class="chip"><b>${nErr}</b> errors</span>
-      <span class="chip"><b>${nWarn}</b> warnings</span>
-      <span class="chip"><b>${a.autoFixed}</b> typos auto-fixed</span>
-      <span class="chip"><b>${m.records.length}</b> records read</span>
+    <div class="sev-filter" role="group" aria-label="Filter by severity">
+      ${[['', 'All', issueTotal], ['error', 'Errors', nErr], ['warn', 'Warnings', nWarn + a.unclassRows], ['info', 'Info', nInfo]].map(([v, l, n]) =>
+        `<button type="button" class="sev-btn ${v || 'all'}" data-sev="${v}" aria-pressed="${(state.qFilter.sev || '') === v}"><b>${n}</b> ${l}</button>`).join('')}
+      <input type="search" id="qText" placeholder="Search sheet, block, reason…" value="${esc(state.qFilter.text)}" aria-label="Search issues">
     </div>
-
-    <div class="card">
-      <div class="card-head"><h2>Unclassified reasons</h2><span class="sub">${a.unclassList.length} unique texts · your mappings are saved in this browser and apply to later months (${mapped} saved)</span></div>
-      ${a.unclassList.length ? `<div class="table-wrap scroll-y"><table><thead><tr><th>Reason text</th><th class="num">Rows</th><th class="num">Min</th><th>Map to Reason Group</th></tr></thead><tbody>
-        ${a.unclassList.map(u => `<tr><td>${u.empty ? '<span class="nodata">(empty reason)</span>' : esc(u.text)}</td><td class="num">${u.count}</td><td class="num">${fmt(u.min)}</td>
-          <td>${u.empty ? '<span class="nodata">Fill in the reason in Excel</span>' : `<select data-map="${esc(u.key)}" aria-label="Reason group for ${esc(u.text)}">${groupOptions('')}</select>`}</td></tr>`).join('')}
-      </tbody></table></div>` : '<p class="nodata">Every reason matched a rule or a saved mapping.</p>'}
-    </div>
-
-    <div class="card">
-      <div class="card-head"><h2>Row issues</h2><span class="sub">Row = Excel row number on the day sheet</span></div>
-      <div class="filters">
-        <select id="qType" aria-label="Filter by issue type"><option value="">All issue types (${issueTotal})</option>${types.map(t => `<option${t === state.qFilter.type ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
-        <input type="search" id="qText" placeholder="Search detail, sheet, block…" value="${esc(state.qFilter.text)}">
-      </div>
-      <div class="table-wrap scroll-y" id="issueTable"></div>
-    </div>
+    <div id="issueGroups"></div>
 
     <details class="card">
       <summary><h2 style="display:inline">All records</h2> <span class="sub">(${m.records.length}) — check how each row was read and classified</span></summary>
@@ -730,32 +713,85 @@ function renderQuality(a) {
       ${m.ignored.length ? `Ignored sheets: ${m.ignored.map(esc).join(', ')}.` : ''}</p>
     </div>`;
 
-  renderIssueTable(a); renderRecTable(a);
-  $('#qType').onchange = e => { state.qFilter.type = e.target.value; renderIssueTable(a); };
-  $('#qText').oninput = e => { state.qFilter.text = e.target.value; renderIssueTable(a); };
-  $('#recText').oninput = e => { state.recFilter = e.target.value; renderRecTable(a); };
-  $$('select[data-map]', el).forEach(s => s.onchange = () => {
-    if (!s.value) return;
-    state.overrides[s.dataset.map] = s.value; saveLS(LS.overrides, state.overrides);
-    toast(`Mapped to ${s.value}. Saved for later months.`);
-    refresh();
+  renderIssueGroups(a); renderRecTable(a);
+  $$('.sev-btn', el).forEach(b => b.onclick = () => {
+    state.qFilter.sev = b.dataset.sev;
+    $$('.sev-btn', el).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    renderIssueGroups(a);
   });
+  $('#qText').oninput = e => { state.qFilter.text = e.target.value; renderIssueGroups(a); };
+  $('#recText').oninput = e => { state.recFilter = e.target.value; renderRecTable(a); };
+  el.onchange = e => {
+    const sel = e.target.closest('select[data-map]');
+    if (!sel || !sel.value) return;
+    state.overrides[sel.dataset.map] = sel.value; saveLS(LS.overrides, state.overrides);
+    toast(`Mapped to ${sel.value}. Saved for later months.`);
+    refresh();
+  };
 }
 
-function renderIssueTable(a) {
+const ISSUE_HELP = {
+  'Downtime missing': 'Fill in DT, or both Stop Time and Start Time, in Excel and load the file again. Until then these rows are left out of all totals.',
+  'Unclassified reason': 'Pick a Reason Group for each text below. One choice fixes every row with that text, and it is remembered for later months.',
+  'Unreadable time': 'The time cell could not be read. Correct the format in Excel (for example 07:05:00 AM).',
+  'Equipment missing': 'Fill in the Equipment column: Packer 1–4, Palletizer 1–2, All Equipment Stopped, or Packer and Palletizer.',
+  'Unknown equipment': 'Use one of: Packer 1–4, Palletizer 1–2, All Equipment Stopped, or Packer and Palletizer. Capital letters do not matter.',
+  'Reason missing': 'Fill in the Reason column in Excel so the stop can be classified.',
+  'Very long stop': 'A single stop over 12 hours. Check the times or DT in Excel.',
+  'No block found': 'This day sheet has no "Stop Time" header row, so nothing was read from it.',
+  'Time typo auto-fixed': 'Already corrected by the app. Fix the cell in Excel to keep the source clean.',
+  'DT differs from Start − Stop': 'The DT column was used. Check which value is right.',
+  'DT unreadable — calculated': 'DT could not be read, so Start − Stop was used instead.',
+  'DT format': 'DT was a plain number and was read as minutes. Check that is correct.',
+  'Block date missing': 'No date next to "Date:" for this block. The sheet name is used as the day.',
+  'Date differs from sheet': 'The block date does not match the sheet name. The sheet name is used as the day.',
+  'Month mismatch': 'The file name and the sheet dates disagree about the month.',
+};
+const SEV_LABEL = { error: 'Error', warn: 'Warning', info: 'Info' };
+const SEV_ORDER = { error: 0, warn: 1, info: 2 };
+
+function renderIssueGroups(a) {
   const q = state.qFilter.text.toLowerCase();
-  const sevOrder = { error: 0, warn: 1, info: 2 };
+  const sev = state.qFilter.sev || '';
   const unclassIssues = a.recs.filter(r => r.category === UNCLASSIFIED && r.reason).map(r => ({
-    sev: 'warn', type: 'Unclassified reason', sheet: r.sheet, row: r.row, block: r.block, detail: `"${r.reason}" (${r.equipment}, ${fmt(r.dt || 0)} min)`,
+    sev: 'warn', type: 'Unclassified reason', sheet: r.sheet, row: r.row, block: r.block,
+    detail: `"${r.reason}" (${r.equipment}, ${fmt(r.dt || 0)} min)`, key: normKey(r.reason),
   }));
   const list = [...a.month.issues, ...unclassIssues]
-    .filter(i => !state.qFilter.type || i.type === state.qFilter.type)
-    .filter(i => !q || `${i.type} ${i.detail} ${i.sheet} ${i.block}`.toLowerCase().includes(q))
-    .sort((x, y) => sevOrder[x.sev] - sevOrder[y.sev] || (+x.sheet || 0) - (+y.sheet || 0) || (x.row || 0) - (y.row || 0));
-  const sevLabel = { error: 'Error', warn: 'Warning', info: 'Info' };
-  $('#issueTable').innerHTML = list.length ? `<table><thead><tr><th></th><th>Type</th><th class="num">Sheet</th><th class="num">Row</th><th>Block</th><th>Detail</th></tr></thead><tbody>
-    ${list.slice(0, 1500).map(i => `<tr><td><span class="pill ${i.sev}">${sevLabel[i.sev]}</span></td><td>${esc(i.type)}</td><td class="num">${esc(i.sheet)}</td><td class="num">${i.row ?? ''}</td><td>${esc(i.block)}</td><td>${esc(i.detail)}</td></tr>`).join('')}
-    </tbody></table>` : '<p class="nodata" style="padding:12px">No matching issues.</p>';
+    .filter(i => !sev || i.sev === sev)
+    .filter(i => !q || `${i.type} ${i.detail} ${i.sheet} ${i.block}`.toLowerCase().includes(q));
+  const groups = new Map();
+  for (const i of list) { if (!groups.has(i.type)) groups.set(i.type, []); groups.get(i.type).push(i); }
+  const ordered = [...groups.entries()].sort((x, y) => SEV_ORDER[x[1][0].sev] - SEV_ORDER[y[1][0].sev] || y[1].length - x[1].length);
+  const byRow = (x, y) => (+x.sheet || 0) - (+y.sheet || 0) || (x.row || 0) - (y.row || 0);
+  const where = i => (i.sheet ? `Sheet ${esc(i.sheet)}${i.row ? ` · row ${i.row}` : ''}` : '—');
+
+  const rowsTable = items => `<div class="table-wrap scroll-y"><table><thead><tr><th>Where in Excel</th><th>Block</th><th>Detail</th></tr></thead><tbody>
+    ${items.slice().sort(byRow).map(i => `<tr><td class="nowrap">${where(i)}</td><td>${esc(i.block)}</td><td>${esc(i.detail)}</td></tr>`).join('')}
+    </tbody></table></div>`;
+
+  const unclassBody = items => {
+    const keys = new Set(items.map(i => i.key));
+    const uniq = a.unclassList.filter(u => !u.empty && keys.has(u.key));
+    return `<div class="table-wrap"><table><thead><tr><th>Reason text</th><th class="num">Rows</th><th class="num">Min</th><th>Map to Reason Group</th></tr></thead><tbody>
+      ${uniq.map(u => `<tr><td><b>${esc(u.text)}</b></td><td class="num">${u.count}</td><td class="num">${fmt(u.min)}</td>
+        <td><select data-map="${esc(u.key)}" aria-label="Reason group for ${esc(u.text)}">${groupOptions('')}</select></td></tr>`).join('')}
+      </tbody></table></div>
+      <details class="sub-details"><summary>Show all ${items.length} rows</summary>${rowsTable(items)}</details>`;
+  };
+
+  $('#issueGroups').innerHTML = ordered.length ? ordered.map(([type, items]) => {
+    const sv = items[0].sev;
+    return `<details class="card issue-group ${sv}" open>
+      <summary>
+        <span class="pill ${sv}">${SEV_LABEL[sv]}</span>
+        <span class="ig-title">${esc(type)}</span>
+        <span class="ig-count">${items.length} ${items.length === 1 ? 'row' : 'rows'}</span>
+      </summary>
+      <p class="ig-help">${esc(ISSUE_HELP[type] || '')}</p>
+      ${type === 'Unclassified reason' ? unclassBody(items) : rowsTable(items)}
+    </details>`;
+  }).join('') : `<div class="card"><p class="nodata">${q || sev ? 'No issues match this filter.' : 'No issues. Every row was read cleanly.'}</p></div>`;
 }
 
 function renderRecTable(a) {
