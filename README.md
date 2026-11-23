@@ -13,10 +13,10 @@ A single-page web app that turns the monthly **START_STOP_PACKER_&lt;MONTH&gt;.x
 ## How to use
 
 1. Open the app and drop a monthly file onto the upload box (or click **Try with sample data**).
-2. **Report** – main finding, KPI cards, unplanned downtime by machine, top 5 unplanned reasons.
+2. **Report** – main finding, KPI cards, unplanned downtime by machine, top 5 unplanned reasons (click any bar to inspect stops).
 3. **Burst Bag** – burst/stuck bag KPIs, Pareto of causes (first 80% highlighted), weekly trend.
-4. **Data Quality** – map unclassified reasons to a Reason Group (saved for later months), see auto-fixed typos and row problems.
-5. **Rules** – edit the keyword rules (regex, first match wins), saved mappings and the Burst Bag Cause alias table. Download/import settings as JSON.
+4. **Data Quality** – health & minutes-impact summary, inline fixes (missing DT, unreadable times, missing/unknown equipment, missing reasons, very long stops, Start − Stop overrides, burst bag causes, and similar-cause merging) with Undo, plus Copy checklist, Export issues (`.csv`), and Download cleaned Excel (`.xlsx`).
+5. **Rules** – edit the keyword rules (regex, first match wins), saved reason/equipment mappings, and the Burst Bag Cause alias table. Download/import settings as JSON.
 6. **Export PDF** prints the Report and Burst Bag pages (choose "Save as PDF" in the print dialog).
 
 Load more than one file to switch months with the month selector.
