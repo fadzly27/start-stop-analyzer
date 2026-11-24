@@ -1381,6 +1381,41 @@ function init() {
   document.addEventListener('drop', e => { dz.classList.remove('drag'); if (e.dataTransfer?.files?.length) handleFiles([...e.dataTransfer.files]); });
 
   $$('[data-tab]').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+
+  // PWA Service Worker, Install Prompt & Desktop .xlsx File Handler
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => { /* ignore */ });
+  }
+  let deferredPrompt = null;
+  const installBtn = $('#installBtn');
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (installBtn) installBtn.hidden = false;
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    if (installBtn) installBtn.hidden = true;
+    toast('Start Stop Analyzer installed.');
+  });
+  if (installBtn) {
+    installBtn.onclick = async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      installBtn.hidden = true;
+    };
+  }
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async params => {
+      if (!params.files?.length) return;
+      const files = [];
+      for (const h of params.files) files.push(await h.getFile());
+      if (files.length) handleFiles(files);
+    });
+  }
+
   refresh();
 }
 

@@ -5,16 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Start Stop Analyzer</title>
   <meta name="description" content="Analyze monthly packer and palletizer start/stop Excel logs in your browser and export a 3-page A4 landscape PDF report.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231d3557'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='system-ui,sans-serif' font-size='13' font-weight='700' fill='%23ffffff'%3ESS%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css?v=2.2">
+  <meta name="theme-color" content="#1c1c1e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Start Stop">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="styles.css?v=2.3">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" defer></script>
-  <script src="app.js?v=2.2" defer></script>
+  <script src="app.js?v=2.3" defer></script>
 </head>
 <body>
   <header class="topbar no-print">
     <div class="topbar-inner">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">SS</span>
+        <img class="brand-mark" src="icons/icon.svg" alt="" width="32" height="32" aria-hidden="true">
         <span class="brand-name">Start Stop</span>
       </div>
 
@@ -31,6 +37,7 @@
         </button>
         <select class="pill-select" id="monthSelect" aria-label="Select month" hidden></select>
         <button class="pill-btn icon-only" id="removeMonthBtn" type="button" title="Remove current file" aria-label="Remove current file" hidden>✕</button>
+        <button class="pill-btn" id="installBtn" type="button" hidden>Install App</button>
         <button class="pill-btn" id="uploadBtn" type="button">+ Upload</button>
         <button class="pill-btn pill-primary" id="pdfBtn" type="button" hidden>Export PDF</button>
       </div>
