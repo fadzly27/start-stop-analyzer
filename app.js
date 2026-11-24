@@ -1285,9 +1285,16 @@ function refresh() {
   $('#pdfBtn').hidden = !loaded;
 
   if (!loaded) {
-    ['overview', 'routing', 'pdf', 'issues'].forEach(p => ($('#tab-' + p).hidden = true));
+    ['overview', 'routing', 'pdf', 'issues'].forEach(p => {
+      const panel = $('#tab-' + p);
+      panel.hidden = true;
+      panel.innerHTML = '';
+    });
+    $('#printReport').innerHTML = '';
+    $('#monthSelect').innerHTML = '';
     $('#issuesBadge').hidden = true;
     $('#issuesBadgeMob').hidden = true;
+    state.analysis = null;
     return;
   }
 
