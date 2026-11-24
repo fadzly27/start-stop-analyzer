@@ -588,7 +588,7 @@ function analyze(month) {
   const total = palTotal + pakTotal;
   const activeMachineCount = MACHINES.filter(n => byMachine[n].min > 0).length;
 
-  const groupTop5 = type => {
+  const groupReasons = type => {
     const list = validMachine.filter(r => r.type === type);
     const tot = sum(list, r => r.dt);
     const by = new Map();
@@ -598,10 +598,7 @@ function analyze(month) {
       by.set(r.group, o);
     }
     const sorted = [...by.values()].sort((a, b) => b.min - a.min);
-    const top = sorted.slice(0, 5);
-    const rem = sum(sorted.slice(5), x => x.min);
-    if (rem > 0) top.push({ name: 'Remaining categories', min: rem, count: sum(sorted.slice(5), x => x.count) });
-    return { total: tot, rows: top, all: sorted };
+    return { total: tot, rows: sorted, all: sorted };
   };
 
   // Burst Bag (Page 3): all valid machine rows with a non-empty Burst Bag Cause
@@ -641,7 +638,7 @@ function analyze(month) {
     month, recs, validMachine, sharedUnplanned, unclassifiedRecs, missingDataMachines,
     byMachine, palTotal, pakTotal, total, activeMachineCount,
     palRanked, pakRanked, headline,
-    topPal: groupTop5('Palletizer'), topPak: groupTop5('Packer'),
+    topPal: groupReasons('Palletizer'), topPak: groupReasons('Packer'),
     burstRecs, burstTotal, burstByMachine, burstTable,
     transfers, issuesCount,
   };
@@ -743,7 +740,7 @@ function renderOverview(a) {
           <div class="legend-list">${legend(palItems, a.palTotal, () => '#233f64', 'data-drill-machine')}</div>
         </div>
         <div class="chart-divider">
-          <div class="chart-subhead">Top Reasons</div>
+          <div class="chart-subhead">All Reasons</div>
           <div class="chart-row">
             ${pieSVG(a.topPal.rows.map(x => ({ value: x.min, color: CAT_COLOR[x.name] || '#999' })), 104, { donut: true })}
             <div class="legend-list">${legend(a.topPal.rows, a.palTotal, n => CAT_COLOR[n] || '#999', 'data-drill-pal')}</div>
@@ -758,7 +755,7 @@ function renderOverview(a) {
           <div class="legend-list">${legend(pakItems, a.pakTotal, () => '#2b7a78', 'data-drill-machine')}</div>
         </div>
         <div class="chart-divider">
-          <div class="chart-subhead">Top Reasons</div>
+          <div class="chart-subhead">All Reasons</div>
           <div class="chart-row">
             ${pieSVG(a.topPak.rows.map(x => ({ value: x.min, color: CAT_COLOR[x.name] || '#999' })), 104, { donut: true })}
             <div class="legend-list">${legend(a.topPak.rows, a.pakTotal, n => CAT_COLOR[n] || '#999', 'data-drill-pak')}</div>
@@ -947,23 +944,23 @@ function buildPdfPage1(a) {
             ${pieSVG(palM.map(x => ({ value: x.min, color: x.color })), 124)}
             <div class="a4-leg">${pdfLegendRows(palM, a.palTotal, () => '#233f64', true)}</div>
           </div>
-          <div class="a4-pie-title">Top 5 reasons (% of palletizer total)</div>
+          <div class="a4-pie-title">All reasons (% of palletizer total)</div>
           <div class="a4-pie-row">
-            ${pieSVG(a.topPal.rows.map(x => ({ value: x.min, color: CAT_COLOR[x.name] || '#999' })), 124)}
-            <div class="a4-leg">${pdfLegendRows(a.topPal.rows, a.palTotal, n => CAT_COLOR[n] || '#999')}</div>
+            ${pieSVG(a.topPal.rows.map(x => ({ value: x.min, color: CAT_COLOR[x.name] || '#999' })), 120)}
+            <div class="a4-leg a4-leg-compact">${pdfLegendRows(a.topPal.rows, a.palTotal, n => CAT_COLOR[n] || '#999')}</div>
           </div>
         </div>
 
         <div>
           <div class="a4-sec-bar pak">PACKERS | ${fmt(a.pakTotal)} min | ${fmtH(a.pakTotal)} h | 100%</div>
           <div class="a4-pie-row">
-            ${pieSVG(pakM.map(x => ({ value: x.min, color: x.color })), 124)}
+            ${pieSVG(pakM.map(x => ({ value: x.min, color: x.color })), 120)}
             <div class="a4-leg">${pdfLegendRows(pakM, a.pakTotal, () => '#2b7a78', true)}</div>
           </div>
-          <div class="a4-pie-title">Top 5 reasons (% of packer total)</div>
+          <div class="a4-pie-title">All reasons (% of packer total)</div>
           <div class="a4-pie-row">
-            ${pieSVG(a.topPak.rows.map(x => ({ value: x.min, color: CAT_COLOR[x.name] || '#999' })), 124)}
-            <div class="a4-leg">${pdfLegendRows(a.topPak.rows, a.pakTotal, n => CAT_COLOR[n] || '#999')}</div>
+            ${pieSVG(a.topPak.rows.map(x => ({ value: x.min, color: CAT_COLOR[x.name] || '#999' })), 120)}
+            <div class="a4-leg a4-leg-compact">${pdfLegendRows(a.topPak.rows, a.pakTotal, n => CAT_COLOR[n] || '#999')}</div>
           </div>
         </div>
       </div>
@@ -977,7 +974,7 @@ function buildPdfPage2(a) {
     const m = a.byMachine[name];
     const isPal = name.startsWith('Palletizer');
     const slices = m.cats.map(c => ({ value: c.min, color: CAT_COLOR[c.group] || '#999' }));
-    const leg = m.cats.slice(0, 10).map(c => `<div class="a4-leg-row">
+    const leg = m.cats.map(c => `<div class="a4-leg-row">
       <span class="a4-leg-l"><span class="sq" style="background:${CAT_COLOR[c.group] || '#999'}"></span><span>${esc(c.group)}</span></span>
       <span class="a4-leg-v">${fmt(c.min)} min ${fmtPct(pct(c.min, m.min))}</span>
     </div>`).join('');

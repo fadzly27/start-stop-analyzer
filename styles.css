@@ -387,6 +387,8 @@ details.card summary::-webkit-details-marker { display: none; }
 .a4-pie-row { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
 .a4-pie-title { font-size: 10.5px; font-weight: 700; color: #1b3556; margin: 0 0 8px; }
 .a4-leg { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4.5px; }
+.a4-leg-compact { gap: 2.5px; }
+.a4-leg-compact .a4-leg-row { font-size: 9.2px; }
 .a4-leg-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10px; color: #1e293b; }
 .a4-leg-l { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .a4-leg-l span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
