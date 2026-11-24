@@ -1281,6 +1281,7 @@ function refresh() {
   const loaded = state.months.size > 0;
   $('#loader').hidden = loaded;
   $('#monthSelect').hidden = !loaded;
+  $('#removeMonthBtn').hidden = !loaded;
   $('#pdfBtn').hidden = !loaded;
 
   if (!loaded) {
@@ -1345,6 +1346,14 @@ function init() {
   $('#uploadBtn').onclick = () => input.click();
   $('#pdfBtn').onclick = () => { setTab('pdf'); setTimeout(triggerPrint, 60); };
   $('#monthSelect').onchange = e => { state.current = e.target.value; refresh(); };
+  $('#removeMonthBtn').onclick = () => {
+    if (!state.current || !state.months.has(state.current)) return;
+    const removed = state.current;
+    state.months.delete(removed);
+    state.current = state.months.size ? [...state.months.keys()][0] : null;
+    refresh();
+    toast(`Removed ${removed}`);
+  };
 
   $('#sampleBtn').onclick = async () => {
     try {
